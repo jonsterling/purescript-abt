@@ -83,3 +83,6 @@ viewIso = { out : out, into : into }
 
 subst :: forall v o e. (Operator o) => Abt o -> Name -> Abt o -> Eff (AbtEffect e) (Abt o)
 subst = V.genericSubst viewIso
+
+printAbt :: forall v o e. (Operator o) => Abt o -> Eff (AbtEffect e) String
+printAbt = V.genericPrint viewIso
