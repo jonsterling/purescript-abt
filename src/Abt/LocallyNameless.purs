@@ -4,6 +4,11 @@ module Abt.LocallyNameless
 , into
 , out
 , subst
+, printAbt
+
+, (\)
+, ($$)
+, var
 ) where
 
 import Abt.Nominal
@@ -81,8 +86,17 @@ out (App o es) = return $ V.App o es
 viewIso :: forall o e. (Operator o) => V.ViewIso (Abt o) (Eff (AbtEffect e)) Name o
 viewIso = { out : out, into : into }
 
-subst :: forall v o e. (Operator o) => Abt o -> Name -> Abt o -> Eff (AbtEffect e) (Abt o)
+subst :: forall o e. (Operator o) => Abt o -> Name -> Abt o -> Eff (AbtEffect e) (Abt o)
 subst = V.genericSubst viewIso
 
-printAbt :: forall v o e. (Operator o) => Abt o -> Eff (AbtEffect e) String
+(\) :: forall o e. (Operator o) => Name -> Abt o -> Eff (AbtEffect e) (Abt o)
+(\) x e = into $ V.Abs x e
+
+($$) :: forall o e. (Operator o) => o -> [Abt o] -> Eff (AbtEffect e) (Abt o)
+($$) o es = into $ V.App o es
+
+var :: forall o e. (Operator o) => Name -> Eff (AbtEffect e) (Abt o)
+var x = into $ V.V x
+
+printAbt :: forall o e. (Operator o) => Abt o -> Eff (AbtEffect e) String
 printAbt = V.genericPrint viewIso
