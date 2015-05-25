@@ -2,6 +2,7 @@ module Abt.LocallyNameless
 ( Tm()
 , into
 , out
+, subst
 ) where
 
 import Abt.Nominal
@@ -61,12 +62,12 @@ app o es =
       then return $ App o es
       else throwException $ error "Incorrect valence"
 
-into :: forall v o e. (Operator o) => V.View Name o (Tm o) -> Eff (err :: Exception | e) (Tm o)
+into :: forall o e. (Operator o) => V.View Name o (Tm o) -> Eff (err :: Exception | e) (Tm o)
 into (V.V v) = return $ Free v
 into (V.Abs v e) = return $ Abs v (shiftVar v 0 e)
 into (V.App o es) = app o es
 
-out :: forall v o e. Tm o -> Eff (err :: Exception, nominal :: NOMINAL | e) (V.View Name o (Tm o))
+out :: forall o e. Tm o -> Eff (err :: Exception, nominal :: NOMINAL | e) (V.View Name o (Tm o))
 out (Free v) = return $ V.V v
 out (Bound n) = throwException $ error "Bound variable occured in out"
 out (Abs x e) = do
@@ -74,3 +75,8 @@ out (Abs x e) = do
   return $ V.Abs v $ addVar v 0 e
 out (App o es) = return $ V.App o es
 
+viewIso :: forall o e. (Operator o) => V.ViewIso (Tm o) (Eff (err :: Exception, nominal :: NOMINAL | e)) Name o
+viewIso = { out : out, into : into }
+
+subst :: forall v o e. (Operator o) => Tm o -> Name -> Tm o -> Eff (err :: Exception, nominal :: NOMINAL | e) (Tm o)
+subst = V.genericSubst viewIso
