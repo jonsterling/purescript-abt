@@ -1,5 +1,6 @@
 module Abt.LocallyNameless
-( Tm()
+( Abt()
+, AbtEffect()
 , into
 , out
 , subst
@@ -15,20 +16,22 @@ import Data.List
 import Data.Foldable
 import Data.Tuple
 
-data Tm o
+data Abt o
   = Free Name
   | Bound Number
-  | Abs Name (Tm o)
-  | App o [Tm o]
+  | Abs Name (Abt o)
+  | App o [Abt o]
 
-instance eqTm :: (Eq o) => Eq (Tm o) where
+type AbtEffect e = (err :: Exception, nominal :: NOMINAL | e)
+
+instance eqAbt :: (Eq o) => Eq (Abt o) where
   (==) (Free v) (Free v') = v == v'
   (==) (Bound i) (Bound j) = i == j
   (==) (Abs _ e) (Abs _ e') = e == e'
   (==) (App o es) (App o' es') = o == o' && es == es'
   (/=) m n = not (m == n)
 
-shiftVar :: forall o. Name -> Number -> Tm o -> Tm o
+shiftVar :: forall o. Name -> Number -> Abt o -> Abt o
 shiftVar v n e =
   case e of
     Free v' -> if v == v' then Bound n else Free v'
@@ -36,7 +39,7 @@ shiftVar v n e =
     Abs x e -> Abs x $ shiftVar v (n + 1) e
     App o es -> App o $ shiftVar v n <$> es
 
-addVar :: forall o. Name -> Number -> Tm o -> Tm o
+addVar :: forall o. Name -> Number -> Abt o -> Abt o
 addVar v n e =
   case e of
     Free v' -> Free v'
@@ -44,13 +47,13 @@ addVar v n e =
     Abs x e -> Abs x $ addVar v (n + 1) e
     App o es -> App o $ addVar v n <$> es
 
-matchArity :: forall o. Number -> Tm o -> Boolean
+matchArity :: forall o. Number -> Abt o -> Boolean
 matchArity 0 (Abs _ _) = false
 matchArity 0 _ = true
 matchArity n (Abs _ e') = matchArity (n - 1) e'
 matchArity n _ = false
 
-app :: forall o e. (Operator o) => o -> [Tm o] -> Eff (err :: Exception | e) (Tm o)
+app :: forall o e. (Operator o) => o -> [Abt o] -> Eff (AbtEffect e) (Abt o)
 app o es =
   let
     ar = arity o
@@ -62,12 +65,12 @@ app o es =
       then return $ App o es
       else throwException $ error "Incorrect valence"
 
-into :: forall o e. (Operator o) => V.View Name o (Tm o) -> Eff (err :: Exception | e) (Tm o)
+into :: forall o e. (Operator o) => V.View Name o (Abt o) -> Eff (AbtEffect e) (Abt o)
 into (V.V v) = return $ Free v
 into (V.Abs v e) = return $ Abs v (shiftVar v 0 e)
 into (V.App o es) = app o es
 
-out :: forall o e. Tm o -> Eff (err :: Exception, nominal :: NOMINAL | e) (V.View Name o (Tm o))
+out :: forall o e. Abt o -> Eff (AbtEffect e) (V.View Name o (Abt o))
 out (Free v) = return $ V.V v
 out (Bound n) = throwException $ error "Bound variable occured in out"
 out (Abs x e) = do
@@ -75,8 +78,8 @@ out (Abs x e) = do
   return $ V.Abs v $ addVar v 0 e
 out (App o es) = return $ V.App o es
 
-viewIso :: forall o e. (Operator o) => V.ViewIso (Tm o) (Eff (err :: Exception, nominal :: NOMINAL | e)) Name o
+viewIso :: forall o e. (Operator o) => V.ViewIso (Abt o) (Eff (AbtEffect e)) Name o
 viewIso = { out : out, into : into }
 
-subst :: forall v o e. (Operator o) => Tm o -> Name -> Tm o -> Eff (err :: Exception, nominal :: NOMINAL | e) (Tm o)
+subst :: forall v o e. (Operator o) => Abt o -> Name -> Abt o -> Eff (AbtEffect e) (Abt o)
 subst = V.genericSubst viewIso
